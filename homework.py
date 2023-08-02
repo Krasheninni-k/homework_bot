@@ -1,3 +1,4 @@
+"""Телеграмм бот для проверки статуса домашней работы."""
 import logging
 import os
 import sys
@@ -41,11 +42,11 @@ def check_tokens():
         raise NameError(message)
     if not TELEGRAM_TOKEN:
         logger.critical('Отсутствует обязательная переменная окружения:'
-                         '"TELEGRAM_TOKEN". Программа остановлена')
+                        '"TELEGRAM_TOKEN". Программа остановлена')
         raise NameError(message)
     if not TELEGRAM_CHAT_ID:
         logger.critical('Отсутствует обязательная переменная окружения:'
-                         '"TELEGRAM_CHAT_ID". Программа остановлена')
+                        '"TELEGRAM_CHAT_ID". Программа остановлена')
         raise NameError(message)
 
 
@@ -87,10 +88,11 @@ def check_response(response):
                 logger.error(message)
                 return message
         else:
-            raise TypeError('В ответе сервера под ключом "homeworks" нет списка')
+            raise TypeError('В ответе сервера под ключом'
+                            '"homeworks" нет списка')
     else:
-        raise TypeError('Ответ сервера не соответствует ожидаемому типу данных (словарь)')
-
+        raise TypeError('Ответ сервера не соответствует ожидаемому'
+                        'типу данных (словарь)')
 
 
 def parse_status(homework):
@@ -107,7 +109,7 @@ def parse_status(homework):
         raise NameError(message)
     verdict = HOMEWORK_VERDICTS.get(status)
     message = ('Изменился статус проверки работы '
-                f'"{homework_name}". {verdict}')
+               f'"{homework_name}". {verdict}')
     return message
 
 
