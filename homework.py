@@ -25,6 +25,9 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 console_handler = logging.StreamHandler(stream=sys.stdout)
@@ -35,19 +38,16 @@ logger.addHandler(console_handler)
 
 def check_tokens():
     """Функция проверки доступности переменных окружения."""
-    if not PRACTICUM_TOKEN:
-        message = ('Отсутствует обязательная переменная окружения:'
-                   '"PRACTICUM_TOKEN". Программа остановлена.')
-        logger.critical(message)
-        raise NameError(message)
-    if not TELEGRAM_TOKEN:
-        logger.critical('Отсутствует обязательная переменная окружения:'
-                        '"TELEGRAM_TOKEN". Программа остановлена')
-        raise NameError(message)
-    if not TELEGRAM_CHAT_ID:
-        logger.critical('Отсутствует обязательная переменная окружения:'
-                        '"TELEGRAM_CHAT_ID". Программа остановлена')
-        raise NameError(message)
+    tokens = {'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+              'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+              'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID}
+
+    for token_name, token_value in tokens.items():
+        if not token_value:
+            message = ('Отсутствует обязательная переменная окружения:'
+                       f'{token_name}. Программа остановлена.')
+            logger.critical(message)
+            raise NameError(message)
 
 
 def get_api_answer(timestamp):
@@ -55,9 +55,10 @@ def get_api_answer(timestamp):
     try:
         params = {'from_date': timestamp - RETRY_PERIOD}
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        logger.debug(f'Сделан запрос к API {ENDPOINT}. Параметры {params}')
     except Exception as error:
         message = (f'Сбой в работе программы: Эндпоинт {ENDPOINT} недоступен.'
-                   f'{error}')
+                   f'Параметры {params}. Ошибка {error}')
         logger.error(message)
         return message
     if response.status_code == HTTPStatus.OK:
@@ -68,46 +69,42 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Функция для проверки ответа сервера Яндекс Практикум."""
-    if isinstance(response, dict):
-        try:
-            homeworks = response.get('homeworks')
-        except Exception as error:
-            message = (f'Неожиданный ответ сервера {error}.')
-            logger.error(message)
-            return message
-        if isinstance(homeworks, list):
-            try:
-                if homeworks:
-                    homework = homeworks[0]
-                    return homework
-                else:
-                    message = 'Новых домашних работ нет'
-                    logger.debug(message)
-            except Exception as error:
-                message = f'Ошибка при обработке домашних работ: {error}'
-                logger.error(message)
-                return message
-        else:
-            raise TypeError('В ответе сервера под ключом'
-                            '"homeworks" нет списка')
-    else:
+    if not isinstance(response, dict):
         raise TypeError('Ответ сервера не соответствует ожидаемому'
                         'типу данных (словарь)')
+    try:
+        homeworks = response.get('homeworks')
+    except Exception as error:
+        message = (f'Неожиданный ответ сервера {error}.')
+        logger.error(message)
+        return message
+    if not isinstance(homeworks, list):
+        raise TypeError('В ответе сервера под ключом "homeworks" нет списка')
+    try:
+        if homeworks:
+            homework = homeworks[0]
+            return homework
+        message = 'Новых домашних работ нет'
+        logger.debug(message)
+    except Exception as error:
+        message = f'Ошибка при обработке домашних работ: {error}'
+        logger.error(message)
+        return message
 
 
 def parse_status(homework):
     """Функция для проверки статуса домашней работы."""
-    if 'homework_name' not in homework or 'status' not in homework:
+    homework_name = homework.get('homework_name')
+    status = homework.get('status')
+    if not status or not homework_name:
         message = 'В ответе сервера нет ключа homework_name или status'
         logger.error(message)
         raise ValueError(message)
-    homework_name = homework.get('homework_name')
-    status = homework.get('status')
-    if status not in HOMEWORK_VERDICTS:
+    verdict = HOMEWORK_VERDICTS.get(status)
+    if not verdict:
         message = ('Неожиданный статус домашней работы')
         logger.error(message)
         raise NameError(message)
-    verdict = HOMEWORK_VERDICTS.get(status)
     message = ('Изменился статус проверки работы '
                f'"{homework_name}". {verdict}')
     return message
@@ -116,6 +113,7 @@ def parse_status(homework):
 def send_message(bot, message):
     """Функция для отправки сообщения в Telegram."""
     try:
+        logger.debug(f'Начинаем отпрвку сообщения {message} в телеграм')
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.debug(f'Бот отправил сообщение {message}')
     except Exception as error:
